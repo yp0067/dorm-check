@@ -229,6 +229,25 @@ function change(input, p, action, data, date) {
 			}
 			if (n.deputySubmission) n.deputySubmission.signature = "";
 		}
+	} else if (action === "cancel-leave") {
+		requireValue(p.role === "monitor", "仅班长可以撤销同学请假");
+		const target = person(data.name);
+		requireValue(target && n.leaves[target.name], "这位同学没有请假记录，请刷新后查看");
+		const name = target.name;
+		before = {
+			name,
+			leave: n.leaves[name],
+			check: n.checks[name] ?? null,
+			final: n.finals[name] ?? null
+		};
+		delete n.leaves[name];
+		delete n.checks[name];
+		delete n.finals[name];
+		if (n.deputySubmission) n.deputySubmission.signature = "";
+		after = {
+			name,
+			cancelled: true
+		};
 	} else if (action === "attendance") {
 		requireValue(canCheck(p, n), "只有本寝室查寝负责人可以提交");
 		const members = roster.filter((x) => x.room === p.room);

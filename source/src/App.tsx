@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, type FormEvent } from "react";
 import { Moon, ArrowRight, Check, CheckCheck, Building2, LogOut, CalendarDays, RefreshCw, AlertCircle, FileText, Users, ShieldCheck } from "lucide-react";
 import { request } from "./api.ts";
-import { roleLabels, type Person } from "./roster.ts";
+import { roleLabels, roster, type Person } from "./roster.ts";
 import { today, canCheck, report, type Night } from "./domain.ts";
 import { Student, Dorm, Deputy, Monitor, ReportDialog } from "./screens.tsx";
 type Payload={person:Person;state:Night;revision:number};
@@ -29,5 +29,5 @@ export default function Home(){
  {error&&<div className="error" role="alert"><AlertCircle size={18}/><span>{error}</span>{error.includes("刷新")&&<button onClick={refresh}>刷新记录</button>}</div>}
  <fieldset disabled={busy} className="content-fieldset" key={date+"-"+data.revision+"-"+tab}>
  {tab==="self"||!work?<Student p={p} n={n} date={date} submit={submit} dirty={()=>setDirty(true)}/>:p.role==="monitor"?<Monitor n={n} submit={submit} dirty={()=>setDirty(true)} showReport={()=>setOutput(report(n,date,"monitor"))}/>:p.role==="deputy"?<Deputy n={n} submit={submit} dirty={()=>setDirty(true)} showReport={()=>dirty?setError("请先提交当前核对和备注，再生成上报文字"):setOutput(report(n,date,"deputy"))}/>:<Dorm p={p} n={n} submit={submit} dirty={()=>setDirty(true)}/>}
- </fieldset><footer className="app-footer"><span><span className="sync-dot"/>{busy?"正在保存…":dirty?"有未提交的修改":"记录已同步"}</span><span>食工261 · {date} 晚间查寝</span></footer></main>{toast&&<div className="toast" role="status"><Check size={18}/>{toast}</div>}{output&&<ReportDialog text={output} close={()=>setOutput("")}/>}</div>;
+ </fieldset><footer className="app-footer"><span><span className="sync-dot"/>{busy?"正在保存…":dirty?"有未提交的修改":"记录已同步"}</span><span>食工261 · {date} 晚间查寝</span></footer></main>{toast&&<div className="toast" role="status"><Check size={18}/>{toast}</div>}{output&&<ReportDialog text={output} notice={p.role==="monitor"&&roster.some(p=>!n.attendance[p.name])?`还有 ${roster.filter(p=>!n.attendance[p.name]).length} 人未完成查寝，未计入下方未归人数。请补齐后再作为最终总结。`:undefined} close={()=>setOutput("")}/>}</div>;
 }

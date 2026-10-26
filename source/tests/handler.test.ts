@@ -41,3 +41,12 @@ test('preflight and database errors remain clear without leaking private data',a
  const call=client({...memoryStore(),createSession:async()=>{throw Error('SECRET_SHOULD_NOT_LEAK');}});
  const response=await call({action:'login',name:'刘行'});assert.equal(response.status,503);assert.doesNotMatch(JSON.stringify(response),/SECRET_SHOULD_NOT_LEAK/);
 });
+test('monitor cancellation requires a monitor session and current revision',async()=>{
+ const call=client(),student=(await call({action:'login',name:'刘行'})).data.token,monitor=(await call({action:'login',name:'胡运萍'})).data.token;
+ await call({action:'leave',date,revision:0,data:{start:date+'T18:00',expected:date+'T23:00',reason:'回家'}},student);
+ assert.equal((await call({action:'cancel-leave',date,revision:1,data:{name:'刘行'}},student)).status,400);
+ assert.equal((await call({action:'cancel-leave',date,revision:0,data:{name:'刘行'}},monitor)).status,409);
+ const result=await call({action:'cancel-leave',date,revision:1,data:{name:'刘行'}},monitor);
+ assert.equal(result.status,200);assert.deepEqual(result.data.state.leaves,{});
+ assert.equal((await call({action:'get',date},student)).data.state.leaves['刘行'],undefined);
+});

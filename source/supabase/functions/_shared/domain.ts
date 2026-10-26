@@ -13,6 +13,7 @@ export function deputySignature(n: Night) { return JSON.stringify([Object.entrie
 export function deputySubmitted(n: Night) { return !!n.deputySubmission && n.deputySubmission.signature===deputySignature(n); }
 export function signature(n: Night, name: string) { return JSON.stringify([n.leaves[name]??null,n.attendance[name]??null,checkValid(n,name),n.deputyNote,deputySubmitted(n)]); }
 export function verified(n: Night, name: string) { const f=n.finals[name]; return !!f && !f.follow && f.signature===signature(n,name); }
+export function attendanceStage(n: Night,p: Person) { return n.attendance[p.name]?"registered":n.roomSubmissions[p.room]?.unavailable?"waiting":"unregistered"; }
 export function issue(n: Night, name: string) {
  const a=n.attendance[name],l=n.leaves[name],c=checkValid(n,name);
  if(!a) return "查寝未登记";
@@ -50,6 +51,13 @@ export function change(input: Night, p: Person, action: string, data: any, date:
    const c=n.checks[p.name];if(c){if(old?.start!==now?.start)c.time=null;if(old?.reason!==now?.reason)c.reason=null;}
    if(n.deputySubmission)n.deputySubmission.signature="";
   }
+ } else if(action==="cancel-leave") {
+  requireValue(p.role==="monitor","仅班长可以撤销同学请假");
+  const target=person(data.name);requireValue(target&&n.leaves[target.name],"这位同学没有请假记录，请刷新后查看");
+  const name=target.name;before={name,leave:n.leaves[name],check:n.checks[name]??null,final:n.finals[name]??null};
+  delete n.leaves[name];delete n.checks[name];delete n.finals[name];
+  if(n.deputySubmission)n.deputySubmission.signature="";
+  after={name,cancelled:true};
  } else if(action==="attendance") {
   requireValue(canCheck(p,n),"只有本寝室查寝负责人可以提交");
   const members=roster.filter(x=>x.room===p.room);requireValue(Array.isArray(data.rows)&&data.rows.length===members.length&&new Set(data.rows.map((r:any)=>r.name)).size===members.length,"请为本寝室每位同学选择状态，包括你自己");
@@ -74,6 +82,22 @@ export function change(input: Night, p: Person, action: string, data: any, date:
 export function report(n: Night,date: string,kind: "monitor"|"deputy") {
  const at=new Intl.DateTimeFormat("zh-CN",{timeZone:"Asia/Shanghai",dateStyle:"short",timeStyle:"short"}).format(new Date());
  if(kind==="deputy") return [`食工261｜${date} 请假登记核对`,`统计截至：${at}`,`学生已填写：${Object.keys(n.leaves).length}人（备注补充未自动计数）`,...Object.entries(n.leaves).map(([name,l])=>{const c=checkValid(n,name);return `${name}（${person(name)?.room}）｜请假：${l.start.replace("T"," ")}｜原因：${l.reason}｜预计到寝：${l.expected.replace("T"," ")}｜时间${c.time?"已核对":"待核对"}，原因${c.reason?"已核对":"待核对"}`;}),`副班补充原文：\n${n.deputyNote||"无"}`,`提交状态：${deputySubmitted(n)?"已提交":"尚未提交或信息已变更"}`].join("\n");
- const absent=roster.filter(p=>n.attendance[p.name]?.status==="absent"),pending=roster.filter(p=>!n.attendance[p.name]);
- return [`食工261｜${date} 查寝未归情况`,`统计截至：${at}`,`应查 ${roster.length}人｜在寝 ${roster.length-absent.length-pending.length}人｜未归 ${absent.length}人｜未登记 ${pending.length}人`,...absent.map(p=>{const l=n.leaves[p.name],f=n.finals[p.name];return `${p.name}（${p.room}）｜原因：${l?.reason||f?.note||"待核实"}｜预计到寝：${l?.expected.replace("T"," ")||"待核实"}｜${verified(n,p.name)?"班长已核验":"待核验"}${f?.note&&l?`｜核验备注：${f.note}`:""}`;}),pending.length?`未登记人员：${pending.map(p=>`${p.name}（${p.room}）`).join("、")}`:"无查寝未登记人员",`副班补充（原文，未自动计数）：\n${n.deputyNote||"无"}`,`尚未完成最终核验：${roster.filter(p=>!verified(n,p.name)).length}人`].join("\n");
+ const absent=roster.filter(p=>n.attendance[p.name]?.status==="absent");
+ const withTime=new Date(date+"T00:00:00Z").getUTCDay()<=4;
+ const groups=new Map<string,{names:string[];reason:string;time:string}>();
+ for(const p of absent){
+  const l=n.leaves[p.name];
+  const reason=(l?.reason||n.finals[p.name]?.note||n.attendance[p.name]?.note||"原因待补充").replace(/\s+/g," ").trim();
+  const time=withTime?(l?.expected||""):"";
+  const key=JSON.stringify([reason,time]);
+  const group=groups.get(key)||{names:[],reason,time};group.names.push(p.name);groups.set(key,group);
+ }
+ return [`${absent.length}人未归`,...Array.from(groups.values(),g=>{
+  let suffix="";
+  if(withTime){
+   const when=g.time?(g.time.slice(0,10)===date?g.time.slice(11):`${g.time.slice(0,4)===date.slice(0,4)?"":g.time.slice(0,4)+"年"}${Number(g.time.slice(5,7))}月${Number(g.time.slice(8,10))}日 ${g.time.slice(11)}`):"";
+   suffix=when?`，预计${when}归寝`:"，归寝时间待补充";
+  }
+  return g.names.join("、")+" "+g.reason+suffix;
+ })].join("\n");
 }
