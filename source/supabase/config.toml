@@ -1,0 +1,4 @@
+project_id = "dorm-check"
+
+[functions.night]
+verify_jwt = false

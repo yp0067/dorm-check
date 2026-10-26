@@ -1,0 +1,46 @@
+# 归寝 · 食工261（GitHub Pages + Supabase）
+
+本项目由你自行部署：GitHub Pages 提供网页，Supabase 的数据库与 `night` 云函数保存、核对全班共享记录。不会再请求之前的 `chatgpt.site` 网站。
+
+已录入12个寝室、43名同学。寝室长只选 **在寝 / 未归**；没有提交的数据显示 **未登记**，不会自动视为在寝。副班只勾选时间和原因，漏填人员用大文本框备注；班长看到固定三列对照。姓名及寝室长按本次对话的确认结果录入。
+
+## 推荐：按部署说明操作，不需要写代码
+
+请阅读同包的《部署说明.md》。可以使用预先构建的“网页文件”直接上传 GitHub，并通过 Supabase 网页控制台粘贴 SQL 和云函数。
+
+## 从源代码发布
+
+需要 Node.js 22.13+，推荐24。安装后：
+
+```sh
+npm ci
+npm test
+npm run build
+```
+
+- `dist/` 是可部署的静态网页。
+- `public/config.json` 只填写云函数地址和公开密钥，构建时会复制到 `dist/config.json`。
+- `supabase/migrations/202610260001_dorm.sql` 创建数据库表和防覆盖保存函数。
+- `supabase/粘贴到云函数.js` 是已打包的单文件后台，可直接粘贴到 Supabase Editor。
+- 后台原文件在 `supabase/functions/`；`npm run build` 会同步重新生成单文件。
+- 使用 CLI 时，设置 `ALLOWED_ORIGIN`，执行 `supabase functions deploy night --project-ref 你的项目编号`；项目配置已声明 `verify_jwt=false`。
+- GitHub 仓库上传源码后，Settings → Pages → Source 选择 GitHub Actions；随附工作流在 `main` 分支更新时测试、构建和发布。
+- `base: './'` 兼容仓库子路径，无需修改仓库名字到代码里。
+
+## 数据和权限
+
+全部统计保存在 Supabase。浏览器只存登录令牌，不把本机记录冒充为全班共享数据。未配置后台时，页面会明确提示并阻止提交。
+
+数据库启用 RLS；公开密钥不能直接读写两张表。云函数验证随机会话、按姓名对应的角色裁剪数据，并检查写入权限。数据库原子版本比较避免旧页面覆盖新提交。只有服务端环境能读取 service_role 密钥。
+
+**按用户要求保留姓名入口。它不验证是否本人：知道姓名的人仍能选择该角色。随机会话和后台权限检查不能解决姓名冒用。** 不要在未增加真实身份认证前把它当成严格保密系统；公开仓库的源文件也包含班级姓名和寝室名单。
+
+每条请假只对应所选的一晚；多晚需分别填写。未接入微信自动通知。副班自由备注原文显示，不自动拆出姓名或计数。
+
+## 本地验证范围
+
+`npm test` 检查名单、角色读写、两个查寝状态、勾选失效、汇总与并发覆盖保护。浏览器测试使用内存数据库模拟 Supabase 适配层，验证静态子目录加载及四个独立浏览器用户的完整操作；它不替代真实 Supabase 联调。
+
+如需复跑浏览器检查，额外安装 Playwright（`npm install --no-save playwright`，然后 `npx playwright install chromium`），构建后在一个终端运行 `node tests/preview.ts`，在另一个终端运行 `node tests/browser-check.mjs`。每次复跑先重启测试服务，清空内存示例。截图保存到 `test-results/`；测试服务仅用于本机检查，不要部署到线上。
+
+没有提供实际 Supabase 项目或 GitHub 仓库，所以尚未替你发布，也未验证实际校园网络可达性。正式使用前先按部署说明完成两台设备的互相读取检查。
