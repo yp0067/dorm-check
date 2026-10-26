@@ -21,7 +21,13 @@ export async function request(body:Record<string,unknown>){
  const headers:Record<string,string>={'Content-Type':'application/json',apikey:c.publicKey};
  if(session)headers['X-Dorm-Session']=session;
  let result:Response;
- try{result=await fetch(c.apiUrl,{method:'POST',headers,body:JSON.stringify(body),signal:AbortSignal.timeout(20000)});}catch{throw Error('无法连接共享数据库，请检查网络与服务地址。填写尚未提交，请稍后重试');}
+ // Some embedded mobile browsers have AbortController but not AbortSignal.timeout.
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
+ try{result=await fetch(c.apiUrl,{method:'POST',headers,body:JSON.stringify(body),signal:controller.signal});}
+ catch{
+  const saving=!['get','login','logout'].includes(String(body.action));
+  throw Error((controller.signal.aborted?'连接记录服务超时。':'暂时无法连接记录服务。')+'请尝试用手机自带浏览器打开，或切换 Wi-Fi／流量后重试。'+(saving?'本次填写尚未确认保存。':''));
+ }finally{clearTimeout(timer);}
  if(result.ok&&body.action==='login'){
   const payload=await result.clone().json();
   try{localStorage.setItem(sessionKey,payload.token);}catch{throw Error('浏览器禁止保存登录状态，请允许本站存储后重试');}
