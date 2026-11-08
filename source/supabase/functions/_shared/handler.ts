@@ -39,11 +39,12 @@ export function handler(store:Store,allowedOrigins:string[]){return async(req:Re
   if(!/^[a-f0-9-]{72}$/.test(token))return json({error:'请先输入姓名'},401);
   const hash=await digest(token);
   if(body.action==='logout'){await store.deleteSession(hash);return json({ok:true});}
-  const session=await store.session(hash);
+  if(!validDate(body.date))return json({error:'查寝日期无效'},400);
+  // Read concurrently, but never expose records until the session has been validated below.
+  const [session,night]=await Promise.all([store.session(hash),store.read(body.date)]);
   const p=session&&Date.parse(session.expires_at)>Date.now()?person(session.name):undefined;
   if(!p)return json({error:'登录已失效，请重新输入姓名'},401);
-  if(!validDate(body.date))return json({error:'查寝日期无效'},400);
-  const current=await store.read(body.date)||{state:blankNight(),revision:0};
+  const current=night||{state:blankNight(),revision:0};
   if(body.action==='get')return json({person:p,state:view(current.state,p),revision:current.revision});
   if(!Number.isInteger(body.revision)||body.revision<0)return json({error:'记录版本无效'},400);
   if(body.revision!==current.revision)return json({error:'有新记录提交，请先刷新，再提交你的修改'},409);
@@ -53,3 +54,4 @@ export function handler(store:Store,allowedOrigins:string[]){return async(req:Re
   return json({person:p,state:view(next,p),revision:current.revision+1});
  }catch{return json({error:'共享数据库暂时无法读写，请检查后台配置或稍后重试；本次修改未确认保存'},503);}
 };}
+

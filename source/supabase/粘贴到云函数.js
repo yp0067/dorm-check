@@ -407,11 +407,11 @@ function handler(store, allowedOrigins) {
 				await store.deleteSession(hash);
 				return json({ ok: true });
 			}
-			const session = await store.session(hash);
+			if (!validDate(body.date)) return json({ error: "查寝日期无效" }, 400);
+			const [session, night] = await Promise.all([store.session(hash), store.read(body.date)]);
 			const p = session && Date.parse(session.expires_at) > Date.now() ? person(session.name) : void 0;
 			if (!p) return json({ error: "登录已失效，请重新输入姓名" }, 401);
-			if (!validDate(body.date)) return json({ error: "查寝日期无效" }, 400);
-			const current = await store.read(body.date) || {
+			const current = night || {
 				state: blankNight(),
 				revision: 0
 			};
