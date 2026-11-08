@@ -381,14 +381,26 @@ function handler(store, allowedOrigins) {
 			if (body.action === "login") {
 				const p = person(typeof body.name === "string" ? body.name.trim() : "");
 				if (!p) return json({ error: "未找到这个姓名，请核对班级名单" }, 400);
+				if (body.date !== void 0 && !validDate(body.date)) return json({ error: "查寝日期无效" }, 400);
 				const token = crypto.randomUUID() + crypto.randomUUID();
-				await store.createSession(await digest(token), p.name, new Date(Date.now() + 7 * 864e5).toISOString());
-				return json({
+				const hash = await digest(token);
+				const [, night] = await Promise.all([store.createSession(hash, p.name, new Date(Date.now() + 7 * 864e5).toISOString()), body.date === void 0 ? Promise.resolve(null) : store.read(body.date)]);
+				if (body.date === void 0) return json({
 					person: p,
 					token
 				});
+				const current = night || {
+					state: blankNight(),
+					revision: 0
+				};
+				return json({
+					person: p,
+					token,
+					state: view(current.state, p),
+					revision: current.revision
+				});
 			}
-			const token = req.headers.get("x-dorm-session") || "";
+			const token = req.headers.get("x-dorm-session") || (typeof body.session === "string" ? body.session : "");
 			if (!/^[a-f0-9-]{72}$/.test(token)) return json({ error: "请先输入姓名" }, 401);
 			const hash = await digest(token);
 			if (body.action === "logout") {

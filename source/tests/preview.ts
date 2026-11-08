@@ -18,7 +18,7 @@ const site=createServer(async(req,res)=>{
  const rel=decodeURIComponent(pathname.slice('/dorm-test/'.length)||'index.html');
  const file=path.resolve('dist',rel),root=path.resolve('dist');
  if(!file.startsWith(root+path.sep)){res.writeHead(403);res.end();return;}
- try{const body=await readFile(file);res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml'} as Record<string,string>)[path.extname(file)]||'application/octet-stream');res.end(body);}catch{res.writeHead(404);res.end();}
+ try{let body=await readFile(file);if(path.extname(file)==='.html')body=Buffer.from(body.toString().replace(/(<script id="dorm-config" type="application\/json">)[\s\S]*?(<\/script>)/,'$1'+JSON.stringify({apiUrl:backend,publicKey:'local-test-only'})+'$2'));res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml'} as Record<string,string>)[path.extname(file)]||'application/octet-stream');res.end(body);}catch{res.writeHead(404);res.end();}
 });
 await Promise.all([new Promise<void>(r=>api.listen(4181,'127.0.0.1',r)),new Promise<void>(r=>site.listen(4180,'127.0.0.1',r))]);
 console.log('Test-only shared server ready: '+origin+'/dorm-test/');

@@ -8,7 +8,7 @@ test('name entry works in browsers without AbortSignal.timeout and explains fail
  const storageDescriptor=Object.getOwnPropertyDescriptor(globalThis,'localStorage');
  const saved=new Map<string,string>();let fail=false;
  Object.defineProperty(AbortSignal,'timeout',{value:undefined,configurable:true});
- Object.defineProperty(globalThis,'document',{value:{baseURI:'https://yp0067.github.io/dorm-check/'},configurable:true});
+ Object.defineProperty(globalThis,'document',{value:{baseURI:'https://yp0067.github.io/dorm-check/',getElementById:()=>null},configurable:true});
  Object.defineProperty(globalThis,'localStorage',{value:{getItem:(key:string)=>saved.get(key)||null,setItem:(key:string,value:string)=>saved.set(key,value),removeItem:(key:string)=>saved.delete(key)},configurable:true});
  t.after(()=>{
   Object.defineProperty(AbortSignal,'timeout',timeoutDescriptor);
@@ -19,6 +19,8 @@ test('name entry works in browsers without AbortSignal.timeout and explains fail
   if(String(url).endsWith('config.json'))return Response.json({apiUrl:'https://example.supabase.co/functions/v1/night',publicKey:'sb_publishable_test'});
   if(fail)throw new TypeError('Failed to fetch');
   assert.ok(init?.signal instanceof AbortSignal);
+  assert.equal(new Headers(init?.headers).get('Content-Type'),'text/plain;charset=UTF-8');
+  assert.equal(new Headers(init?.headers).has('apikey'),false);
   return Response.json({token:'test-session'});
  });
  assert.equal((await request({action:'login',name:'刘行'})).status,200);

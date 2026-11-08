@@ -24,11 +24,18 @@ export function handler(store:Store,allowedOrigins:string[]){return async(req:Re
   // shortcut: the user explicitly chose name-only entry. This selects a role, not verified identity.
   if(body.action==='login'){
    const p=person(typeof body.name==='string'?body.name.trim():'');if(!p)return json({error:'未找到这个姓名，请核对班级名单'},400);
+   if(body.date!==undefined&&!validDate(body.date))return json({error:'查寝日期无效'},400);
    const token=crypto.randomUUID()+crypto.randomUUID();
-   await store.createSession(await digest(token),p.name,new Date(Date.now()+7*86400000).toISOString());
-   return json({person:p,token});
+   const hash=await digest(token);
+   const [,night]=await Promise.all([
+    store.createSession(hash,p.name,new Date(Date.now()+7*86400000).toISOString()),
+    body.date===undefined?Promise.resolve(null):store.read(body.date)
+   ]);
+   if(body.date===undefined)return json({person:p,token});
+   const current=night||{state:blankNight(),revision:0};
+   return json({person:p,token,state:view(current.state,p),revision:current.revision});
   }
-  const token=req.headers.get('x-dorm-session')||'';
+  const token=req.headers.get('x-dorm-session')||(typeof body.session==='string'?body.session:'');
   if(!/^[a-f0-9-]{72}$/.test(token))return json({error:'请先输入姓名'},401);
   const hash=await digest(token);
   if(body.action==='logout'){await store.deleteSession(hash);return json({ok:true});}

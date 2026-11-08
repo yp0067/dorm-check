@@ -1,10 +1,16 @@
 const sessionKey='guinqin-session';
+export function hasSession(){try{return !!localStorage.getItem(sessionKey);}catch{return false;}}
 let configPromise:Promise<{apiUrl:string;publicKey:string}>|undefined;
 async function config(){
  if(!configPromise)configPromise=(async()=>{
-  const response=await fetch(new URL('./config.json',document.baseURI),{cache:'no-store'});
-  if(!response.ok)throw Error('网页配置未加载，请检查 config.json 是否已上传');
-  const data=await response.json();
+  const embedded=document.getElementById('dorm-config')?.textContent;
+  let data;
+  if(embedded)data=JSON.parse(embedded);
+  else{
+   const response=await fetch(new URL('./config.json',document.baseURI),{cache:'no-store'});
+   if(!response.ok)throw Error('网页配置未加载，请检查 config.json 是否已上传');
+   data=await response.json();
+  }
   if(!data.apiUrl)throw Error('尚未连接共享数据库，请先按部署说明填写 config.json；当前不能提交查寝记录');
   const url=new URL(data.apiUrl);
   if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1'].includes(url.hostname)))throw Error('在线服务地址必须使用 HTTPS');
@@ -18,12 +24,12 @@ async function config(){
 }
 export async function request(body:Record<string,unknown>){
  const c=await config();let session='';try{session=localStorage.getItem(sessionKey)||'';}catch{}
- const headers:Record<string,string>={'Content-Type':'application/json',apikey:c.publicKey};
- if(session)headers['X-Dorm-Session']=session;
+ // A plain-text JSON body avoids a CORS preflight. The backend still validates origin and session.
+ const headers:Record<string,string>={'Content-Type':'text/plain;charset=UTF-8'};
  let result:Response;
  // Some embedded mobile browsers have AbortController but not AbortSignal.timeout.
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
- try{result=await fetch(c.apiUrl,{method:'POST',headers,body:JSON.stringify(body),signal:controller.signal});}
+ try{result=await fetch(c.apiUrl,{method:'POST',headers,body:JSON.stringify({...body,session}),signal:controller.signal});}
  catch{
   const saving=!['get','login','logout'].includes(String(body.action));
   throw Error((controller.signal.aborted?'连接记录服务超时。':'暂时无法连接记录服务。')+'请尝试用手机自带浏览器打开，或切换 Wi-Fi／流量后重试。'+(saving?'本次填写尚未确认保存。':''));
@@ -32,6 +38,6 @@ export async function request(body:Record<string,unknown>){
   const payload=await result.clone().json();
   try{localStorage.setItem(sessionKey,payload.token);}catch{throw Error('浏览器禁止保存登录状态，请允许本站存储后重试');}
  }
- if((result.ok&&body.action==='logout')||result.status===401){try{localStorage.removeItem(sessionKey);}catch{}}
+ if((result.ok&&body.action==='logout')||result.status===401){try{if((localStorage.getItem(sessionKey)||'')===session)localStorage.removeItem(sessionKey);}catch{}}
  return result;
 }

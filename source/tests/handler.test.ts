@@ -50,3 +50,20 @@ test('monitor cancellation requires a monitor session and current revision',asyn
  assert.equal(result.status,200);assert.deepEqual(result.data.state.leaves,{});
  assert.equal((await call({action:'get',date},student)).data.state.leaves['刘行'],undefined);
 });
+test('one login returns current role-scoped records and a usable session',async()=>{
+ const call=client();
+ const owner=(await call({action:'login',name:'刘行'})).data.token;
+ await call({action:'leave',date,revision:0,data:{start:date+'T18:00',expected:date+'T23:00',reason:'回家'}},owner);
+ const login=await call({action:'login',name:'胡运萍',date});
+ assert.equal(login.status,200);assert.equal(login.data.revision,1);assert.equal(login.data.state.leaves['刘行'].reason,'回家');
+ const peer=await call({action:'login',name:'杜吉贺',date});assert.deepEqual(peer.data.state.leaves,{});assert.deepEqual(peer.data.state.audit,[]);
+ const restored=await call({action:'get',date,session:login.data.token});assert.equal(restored.status,200);assert.equal(restored.data.revision,1);
+ assert.equal((await call({action:'get',date,session:'forged'})).status,401);
+ assert.equal((await call({action:'get',date,session:login.data.token},'','https://wrong.example')).status,403);
+ await call({action:'logout',session:login.data.token});assert.equal((await call({action:'get',date,session:login.data.token})).status,401);
+});
+test('invalid login date is rejected before creating a session',async()=>{
+ const store=memoryStore();let created=0;
+ const call=client({...store,createSession:async()=>{created++;}});
+ assert.equal((await call({action:'login',name:'刘行',date:'2026-02-30'})).status,400);assert.equal(created,0);
+});

@@ -21,7 +21,7 @@ npm run build
 ```
 
 - `dist/` 是可部署的静态网页。
-- `public/config.json` 只填写云函数地址和公开密钥，构建时会复制到 `dist/config.json`。
+- `public/config.json` 只填写云函数地址和公开密钥，构建时会复制到 `dist/config.json` 并内嵌进首页以省去一次请求。更换配置后需要重新运行 `npm run build`，同步上传新首页。
 - `supabase/migrations/202610260001_dorm.sql` 创建数据库表和防覆盖保存函数。
 - `supabase/粘贴到云函数.js` 是已打包的单文件后台，可直接粘贴到 Supabase Editor。
 - 后台原文件在 `supabase/functions/`；`npm run build` 会同步重新生成单文件。
